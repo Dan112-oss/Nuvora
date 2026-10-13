@@ -1,0 +1,17 @@
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+.env
+.env.*
+node_modules
+Dockerfile
+.dockerignore
+*.md
+
+# Secrets and runtime files must come from environment variables / the host
+config/config.local.php
+logs/*
+uploads/*
