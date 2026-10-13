@@ -334,4 +334,4 @@ CREATE TABLE IF NOT EXISTS `banners` (
   `created_at` TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_banners_display` (`position`, `is_active`, `sort_order`)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB;  
