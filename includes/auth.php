@@ -220,25 +220,23 @@ function auth_register(array $data, string $role = 'buyer'): array
         return ['ok' => false, 'user_id' => null, 'errors' => $errors];
     }
 
-    try {
-        $userId = db_insert(
-            'INSERT INTO users (role, first_name, last_name, email, phone, password_hash)
-             VALUES (:role, :first, :last, :email, :phone, :hash)',
-            [
-                'role'  => $role,
-                'first' => $first,
-                'last'  => $last,
-                'email' => $email,
-                'phone' => $phone !== '' ? $phone : null,
-                'hash'  => password_hash($password, PASSWORD_DEFAULT),
-            ]
-        );
-    } catch (PDOException $e) {
-        // Two simultaneous sign-ups with the same email: the unique key wins.
-        if ($e->getCode() === '23000') {
-            return ['ok' => false, 'user_id' => null, 'errors' => ['email' => 'An account with this email already exists.']];
-        }
-        throw $e;
+    // ON CONFLICT keeps this safe when two sign-ups use the same email at the same moment.
+    $userId = db_insert(
+        'INSERT INTO users (role, first_name, last_name, email, phone, password_hash)
+         VALUES (:role, :first, :last, :email, :phone, :hash)
+         ON CONFLICT (email) DO NOTHING',
+        [
+            'role'  => $role,
+            'first' => $first,
+            'last'  => $last,
+            'email' => $email,
+            'phone' => $phone !== '' ? $phone : null,
+            'hash'  => password_hash($password, PASSWORD_DEFAULT),
+        ]
+    );
+
+    if ($userId === 0) {
+        return ['ok' => false, 'user_id' => null, 'errors' => ['email' => 'An account with this email already exists.']];
     }
 
     return ['ok' => true, 'user_id' => $userId, 'errors' => []];

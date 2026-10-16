@@ -54,17 +54,20 @@ novura_default('APP_ENV', (string) novura_env('APP_ENV', 'development')); // dev
 novura_default('APP_DEBUG', APP_ENV !== 'production');
 novura_default('BASE_URL', rtrim((string) novura_env('BASE_URL', 'http://localhost/novura'), '/'));
 novura_default('TIMEZONE', 'Africa/Lagos');
-novura_default('DB_TIMEZONE', '+01:00'); // keep in sync with TIMEZONE (Lagos = UTC+1, no DST)
+novura_default('DB_TIMEZONE', TIMEZONE); // PostgreSQL session time zone (same as PHP, so NOW() and PHP dates agree)
 
 /* -------------------------------------------------------------------------
  * Database
  * ---------------------------------------------------------------------- */
+// PostgreSQL (Supabase). Use the "Session pooler" host/port/user from Supabase > Connect.
 novura_default('DB_HOST', (string) novura_env('DB_HOST', '127.0.0.1'));
-novura_default('DB_PORT', (int) novura_env('DB_PORT', 3306));
-novura_default('DB_NAME', (string) novura_env('DB_NAME', 'novura'));
-novura_default('DB_USER', (string) novura_env('DB_USER', 'root'));
+novura_default('DB_PORT', (int) novura_env('DB_PORT', 5432));
+novura_default('DB_NAME', (string) novura_env('DB_NAME', 'postgres'));
+novura_default('DB_USER', (string) novura_env('DB_USER', 'postgres'));
 novura_default('DB_PASS', (string) novura_env('DB_PASS', ''));
-novura_default('DB_CHARSET', 'utf8mb4');
+novura_default('DB_SSLMODE', (string) novura_env('DB_SSLMODE', 'require')); // use "disable" for a local PostgreSQL without SSL
+// Supabase's "transaction pooler" (port 6543) cannot use server-side prepared statements.
+novura_default('DB_EMULATE_PREPARES', DB_PORT === 6543);
 
 /* -------------------------------------------------------------------------
  * Money and shop rules
@@ -110,8 +113,10 @@ ini_set('display_errors', APP_DEBUG ? '1' : '0');
 ini_set('display_startup_errors', APP_DEBUG ? '1' : '0');
 ini_set('log_errors', '1');
 
+// By default errors go to the server's error stream (visible in Render Logs).
+// Set NOVURA_LOG_FILE=1 to write them to logs/php-error.log instead.
 $logDir = NOVURA_ROOT . '/logs';
-if (is_dir($logDir) && is_writable($logDir)) {
+if (novura_env('LOG_FILE', '') === '1' && is_dir($logDir) && is_writable($logDir)) {
     ini_set('error_log', $logDir . '/php-error.log');
 }
 

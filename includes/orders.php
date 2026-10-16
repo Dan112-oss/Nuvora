@@ -195,14 +195,14 @@ function orders_create(int $userId, array $shipping, string $method): array
         for ($attempt = 0; $attempt < 3 && $orderId === 0; $attempt++) {
             $orderNumber = orders_generate_number();
 
-            try {
-                $orderId = db_insert(
+            $orderId = db_insert(
                     'INSERT INTO orders
                         (order_number, user_id, status, payment_method, payment_status, subtotal, shipping_fee, discount, total, currency,
                          shipping_name, shipping_phone, shipping_address, shipping_city, shipping_state, notes)
                      VALUES
                         (:number, :user, :status, :method, :pay_status, :subtotal, :shipping_fee, 0, :total, :currency,
-                         :s_name, :s_phone, :s_address, :s_city, :s_state, :notes)',
+                         :s_name, :s_phone, :s_address, :s_city, :s_state, :notes)
+                     ON CONFLICT (order_number) DO NOTHING',
                     [
                         'number'       => $orderNumber,
                         'user'         => $userId,
@@ -221,11 +221,10 @@ function orders_create(int $userId, array $shipping, string $method): array
                         'notes'        => ($shipping['notes'] ?? '') !== '' ? (string) $shipping['notes'] : null,
                     ]
                 );
-            } catch (PDOException $e) {
-                if ($e->getCode() !== '23000' || $attempt === 2) {
-                    throw $e;
-                }
-            }
+        }
+
+        if ($orderId === 0) {
+            throw new RuntimeException('Could not generate a unique order number.');
         }
 
         foreach ($lines as $line) {
@@ -383,7 +382,7 @@ function orders_cleanup_stale(): void
     $stale = db_fetch_all(
         "SELECT id FROM orders
           WHERE status = 'pending' AND payment_method = 'paystack' AND payment_status = 'unpaid'
-            AND created_at < (NOW() - INTERVAL " . (int) ORDER_PAYMENT_WINDOW_MINUTES . " MINUTE)
+            AND created_at < (NOW() - INTERVAL '" . (int) ORDER_PAYMENT_WINDOW_MINUTES . " minutes')
           ORDER BY id LIMIT 20"
     );
 

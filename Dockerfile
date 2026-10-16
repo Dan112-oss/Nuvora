@@ -6,13 +6,17 @@
 #   NOVURA_APP_ENV=production
 #   NOVURA_BASE_URL=https://your-app.onrender.com      (no trailing slash)
 #   NOVURA_DB_HOST / NOVURA_DB_PORT / NOVURA_DB_NAME / NOVURA_DB_USER / NOVURA_DB_PASS
+#       (Supabase: use the "Session pooler" values from Connect; NAME is usually "postgres")
 #   NOVURA_PAYSTACK_PUBLIC_KEY / NOVURA_PAYSTACK_SECRET_KEY
 # ============================================================================
 
 FROM php:8.3-apache
 
-# PDO MySQL driver (the app talks to MySQL through PDO)
-RUN docker-php-ext-install pdo_mysql \
+# PDO PostgreSQL driver (the app talks to Supabase/PostgreSQL through PDO)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq-dev \
+    && docker-php-ext-install pdo_pgsql \
+    && rm -rf /var/lib/apt/lists/* \
     && mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
 # Apache hardening + HTTPS detection behind the host's proxy

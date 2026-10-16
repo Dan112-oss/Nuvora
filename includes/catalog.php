@@ -13,7 +13,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
 
 /** SQL for the price a buyer pays right now (flash price while the sale is live). */
-const CATALOG_PRICE_SQL = 'IF(p.is_flash_sale = 1 AND p.flash_sale_price IS NOT NULL AND (p.flash_sale_ends_at IS NULL OR p.flash_sale_ends_at > NOW()), p.flash_sale_price, p.price)';
+const CATALOG_PRICE_SQL = 'CASE WHEN p.is_flash_sale = 1 AND p.flash_sale_price IS NOT NULL AND (p.flash_sale_ends_at IS NULL OR p.flash_sale_ends_at > NOW()) THEN p.flash_sale_price ELSE p.price END';
 
 /** SQL condition: product is in a live flash sale. */
 const CATALOG_FLASH_SQL = '(p.is_flash_sale = 1 AND p.flash_sale_price IS NOT NULL AND (p.flash_sale_ends_at IS NULL OR p.flash_sale_ends_at > NOW()))';
@@ -287,7 +287,7 @@ function catalog_fetch_products(array $opts = []): array
     $terms = catalog_search_terms((string) ($opts['q'] ?? ''));
     foreach ($terms as $i => $term) {
         $like = '%' . addcslashes($term, '%_\\') . '%';
-        $where[] = "(p.name LIKE :t{$i}a OR p.brand LIKE :t{$i}b OR p.short_description LIKE :t{$i}c)";
+        $where[] = "(p.name ILIKE :t{$i}a OR p.brand ILIKE :t{$i}b OR p.short_description ILIKE :t{$i}c)";
         $params["t{$i}a"] = $like;
         $params["t{$i}b"] = $like;
         $params["t{$i}c"] = $like;
@@ -298,7 +298,7 @@ function catalog_fetch_products(array $opts = []): array
 
     if ($sort === 'relevance' && $terms) {
         $phrase                  = addcslashes(implode(' ', $terms), '%_\\');
-        $orderSql                = '(p.name LIKE :rel_start) DESC, (p.name LIKE :rel_any) DESC, p.view_count DESC, p.id DESC';
+        $orderSql                = '(p.name ILIKE :rel_start) DESC, (p.name ILIKE :rel_any) DESC, p.view_count DESC, p.id DESC';
         $orderParams['rel_start'] = $phrase . '%';
         $orderParams['rel_any']   = '%' . $phrase . '%';
     } else {

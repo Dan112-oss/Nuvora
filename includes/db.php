@@ -1,6 +1,6 @@
 <?php
 /**
- * NOVURA MARKETPLACE - DATABASE LAYER (PDO)
+ * NOVURA MARKETPLACE - DATABASE LAYER (PDO + PostgreSQL / Supabase)
  *
  * Usage:
  *   require_once __DIR__ . '/db.php';
@@ -26,24 +26,24 @@ function db(): PDO
     }
 
     $dsn = sprintf(
-        'mysql:host=%s;port=%d;dbname=%s;charset=%s',
+        'pgsql:host=%s;port=%d;dbname=%s;sslmode=%s',
         DB_HOST,
         DB_PORT,
         DB_NAME,
-        DB_CHARSET
+        DB_SSLMODE
     );
 
     try {
         $pdo = new PDO($dsn, DB_USER, DB_PASS, [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
+            PDO::ATTR_EMULATE_PREPARES   => DB_EMULATE_PREPARES,
             PDO::ATTR_STRINGIFY_FETCHES  => false,
-            PDO::MYSQL_ATTR_INIT_COMMAND => sprintf(
-                "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci, time_zone = '%s'",
-                DB_TIMEZONE
-            ),
+            PDO::ATTR_TIMEOUT            => 10,
         ]);
+
+        // One session setting: keep NOW() in the same time zone as PHP.
+        $pdo->exec("SET TIME ZONE '" . str_replace("'", '', DB_TIMEZONE) . "'");
     } catch (PDOException $e) {
         // Log the real reason; never expose credentials or host details to visitors.
         error_log('[Novura] Database connection failed: ' . $e->getMessage());
@@ -79,6 +79,15 @@ function db_fail(): never
     }
 
     exit;
+}
+
+/**
+ * True when a PDOException is a UNIQUE-constraint violation
+ * (PostgreSQL SQLSTATE 23505; 23000 is the generic integrity class).
+ */
+function db_is_duplicate_key(Throwable $e): bool
+{
+    return $e instanceof PDOException && in_array((string) $e->getCode(), ['23505', '23000'], true);
 }
 
 /**
@@ -132,17 +141,29 @@ function db_execute(string $sql, array $params = []): int
     return db_query($sql, $params)->rowCount();
 }
 
-/** Run an INSERT and return the new auto-increment id. */
+/**
+ * Run an INSERT and return the new row's id.
+ * "RETURNING id" is added automatically (every Novura table has an "id" column).
+ * Returns 0 when the INSERT was skipped by "ON CONFLICT DO NOTHING".
+ */
 function db_insert(string $sql, array $params = []): int
 {
-    db_query($sql, $params);
+    if (stripos($sql, ' returning ') === false) {
+        $sql = rtrim($sql, "; \t\n\r") . ' RETURNING id';
+    }
 
-    return (int) db()->lastInsertId();
+    $value = db_query($sql, $params)->fetchColumn();
+
+    return $value === false ? 0 : (int) $value;
 }
 
 /**
  * Run a callback inside a transaction (commit on success, rollback on any error).
  * Safe to nest: an inner call simply joins the outer transaction.
+ *
+ * PostgreSQL note: after a failed statement inside a transaction, every later
+ * statement fails until the transaction ends, so avoid catching SQL errors inside
+ * the callback and carrying on (use ON CONFLICT DO NOTHING instead).
  */
 function db_transaction(callable $callback): mixed
 {
